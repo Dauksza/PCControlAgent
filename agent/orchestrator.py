@@ -26,7 +26,7 @@ class AgentOrchestrator:
     - Retry logic with exponential backoff
     """
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: Optional[str] = None):
         self.client = MistralClient(api_key)
         self.tool_registry = ToolRegistry()
         self.completion_detector = CompletionDetector()

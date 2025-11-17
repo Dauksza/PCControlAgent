@@ -1,7 +1,7 @@
 """
 Task decomposition for breaking down complex tasks
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -122,5 +122,3 @@ class TaskDecomposer:
         
         completed = sum(1 for s in subtasks if s["status"] == "completed")
         return completed / len(subtasks)
-
-from typing import Optional

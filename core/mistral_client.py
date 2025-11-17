@@ -1,18 +1,21 @@
-"""
-Core Mistral AI client with full API support
-"""
-import os
-import json
-import time
+"""Core Mistral AI client with full API support."""
+from __future__ import annotations
+
 import asyncio
-from typing import Dict, List, Optional, Any, Union, AsyncIterator
+import json
+import os
+import time
 from datetime import datetime, timedelta
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
+
 import httpx
 from mistralai import Mistral
+
+from config.constants import FALLBACK_MODELS
 from config.settings import settings
-from config.constants import FALLBACK_MODELS, ENDPOINTS
-from utils.error_handling import MistralAPIError, CircuitBreakerOpen, CircuitBreaker
+from config.user_settings import get_api_key as load_stored_api_key
 from utils.cache_manager import CacheManager
+from utils.error_handling import CircuitBreaker, CircuitBreakerOpen, MistralAPIError
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -34,9 +37,24 @@ class MistralClient:
     """
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.MISTRAL_API_KEY
-        if not self.api_key:
-            raise ValueError("MISTRAL_API_KEY not provided")
+        resolved_key = api_key
+
+        if not resolved_key:
+            try:
+                resolved_key = load_stored_api_key()
+            except Exception as exc:  # pragma: no cover - safety log
+                logger.warning("Failed to load API key from storage: %s", exc)
+
+        if not resolved_key:
+            resolved_key = settings.MISTRAL_API_KEY
+
+        if not resolved_key:
+            raise ValueError(
+                "Mistral API key not provided. Set MISTRAL_API_KEY environment variable "
+                "or store one via POST /api/settings/api-key."
+            )
+
+        self.api_key = resolved_key
         
         # Initialize Mistral SDK client
         self.client = Mistral(api_key=self.api_key)
