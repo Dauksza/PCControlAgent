@@ -1,4 +1,6 @@
 """REST API routes."""
+import json
+import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -10,6 +12,7 @@ from sqlalchemy.orm import Session
 from agent.orchestrator import AgentOrchestrator
 from core.mistral_client import MistralClient
 from core.models import ModelManager
+from config.settings import settings
 from config.user_settings import (
     delete_api_key as delete_stored_api_key,
     get_api_key as load_stored_api_key,
@@ -92,6 +95,13 @@ class ThreadRenameRequest(BaseModel):
 class ApiKeyRequest(BaseModel):
     api_key: str = Field(..., min_length=10, description="Mistral API key to store securely")
 
+
+class FrontendMessageRequest(BaseModel):
+    conversation_id: str
+    thread_id: str
+    content: str = Field(..., min_length=1)
+    model: Optional[str] = None
+
 @router.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -135,6 +145,90 @@ async def remove_api_key():
     except Exception as exc:
         logger.error("Failed to delete API key: %s", exc)
         raise HTTPException(status_code=500, detail="Unable to delete API key")
+
+
+@router.get("/frontend/bootstrap")
+async def frontend_bootstrap(db: Session = Depends(get_session)):
+    """Aggregate initial data required by the React frontend."""
+    conversations = (
+        db.query(Conversation)
+        .order_by(Conversation.updated_at.desc())
+        .all()
+    )
+    conversation_payload = [conversation.to_dict() for conversation in conversations]
+
+    active_thread = None
+    for conversation in conversation_payload:
+        threads = conversation.get('threads') or []
+        if threads:
+            active_thread = threads[-1]
+            break
+
+    try:
+        stored_key = await run_in_threadpool(load_stored_api_key)
+    except Exception:
+        stored_key = None
+
+    has_api_key = bool(stored_key or settings.MISTRAL_API_KEY)
+
+    models = await _get_model_manager().get_models()
+    model_ids = [model.get('id') for model in models if model.get('id')]
+
+    return {
+        "conversations": conversation_payload,
+        "activeThread": active_thread,
+        "hasApiKey": has_api_key,
+        "models": model_ids,
+    }
+
+
+@router.post("/frontend/message")
+async def frontend_message(request: FrontendMessageRequest):
+    """Simple chat endpoint tailored for the new frontend experience."""
+    client = _get_mistral_client()
+    try:
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": request.content}],
+            model=request.model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Frontend message failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Chat request failed")
+
+    choice = response.get("choices", [{}])[0]
+    message = choice.get("message", {})
+    tool_calls = message.get("tool_calls", []) or []
+
+    parsed_tool_calls = []
+    for call in tool_calls:
+        function = call.get("function") or {}
+        arguments = function.get("arguments")
+        try:
+            parsed_args = json.loads(arguments) if isinstance(arguments, str) else arguments
+        except json.JSONDecodeError:
+            parsed_args = {"raw": arguments}
+
+        parsed_tool_calls.append(
+            {
+                "id": call.get("id", str(uuid.uuid4())),
+                "name": function.get("name", "unknown_tool"),
+                "arguments": parsed_args or {},
+            }
+        )
+
+    payload = {
+        "message": {
+            "id": str(uuid.uuid4()),
+            "role": message.get("role", "assistant"),
+            "content": message.get("content", ""),
+            "createdAt": datetime.utcnow().isoformat(),
+            "toolCalls": parsed_tool_calls,
+        }
+    }
+
+    return payload
 
 
 @router.post("/conversations/create")

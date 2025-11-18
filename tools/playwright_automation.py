@@ -10,9 +10,8 @@ from utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 try:  # Playwright may not be installed in every environment
-    from playwright.async_api import Browser, Page, async_playwright
+    from playwright.async_api import async_playwright  # type: ignore[import]
 except ImportError:  # pragma: no cover - optional dependency
-    Browser = Page = None  # type: ignore
     async_playwright = None  # type: ignore
 
 
@@ -24,8 +23,8 @@ class PlaywrightAutomationTool(BaseTool):
         self.name = "playwright_automation"
         self.description = "Automate browser actions using Playwright."
         self._playwright = None
-        self._browser: Optional[Browser] = None
-        self._page: Optional[Page] = None
+        self._browser: Optional[Any] = None
+        self._page: Optional[Any] = None
         self._screenshot_dir = Path("exports") / "screenshots"
         self._screenshot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -81,7 +80,7 @@ class PlaywrightAutomationTool(BaseTool):
             logger.error("Playwright operation %s failed: %s", operation, exc)
             return f"Playwright error: {exc}"
 
-    async def _ensure_page(self) -> Page:
+    async def _ensure_page(self) -> Any:
         if self._page:
             return self._page
 

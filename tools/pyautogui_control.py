@@ -1,6 +1,7 @@
 """Desktop automation tool leveraging PyAutoGUI."""
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -10,11 +11,10 @@ from utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 try:  # pragma: no cover - optional dependency
-    import pyautogui
-
+    pyautogui = importlib.import_module("pyautogui")
     pyautogui.FAILSAFE = False
 except Exception as exc:  # pragma: no cover - dependency might be missing or display unavailable
-    pyautogui = None  # type: ignore
+    pyautogui = None
     logger.warning("PyAutoGUI unavailable: %s", exc)
 
 
