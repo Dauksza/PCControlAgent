@@ -10,7 +10,7 @@ export default defineConfig({
       '@pages': path.resolve(__dirname, 'src/pages'),
       '@hooks': path.resolve(__dirname, 'src/hooks'),
       '@utils': path.resolve(__dirname, 'src/utils'),
-      '@types': path.resolve(__dirname, 'src/types'),
+      '@app-types': path.resolve(__dirname, 'src/types'),
     },
   },
   server: {

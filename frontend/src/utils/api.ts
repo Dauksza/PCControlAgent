@@ -9,6 +9,11 @@ interface SendChatPayload {
 }
 
 export const sendChatMessage = async (payload: SendChatPayload): Promise<{ message: ChatMessage }> => {
-  const { data } = await axios.post('/api/frontend/message', payload);
+  const { data } = await axios.post('/api/frontend/message', {
+    conversation_id: payload.conversationId,
+    thread_id: payload.threadId,
+    content: payload.content,
+    model: payload.model,
+  });
   return data;
 };
